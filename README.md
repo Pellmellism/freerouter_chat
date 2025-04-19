@@ -6,7 +6,7 @@
 
 No server needed, no build steps, no complex setup. Just download the HTML file, open it, add your API key, and start chatting with powerful AI models for free!
 
-**(Live Demo:** [**https://pellmellism.github.io/freerouter_chat/**](https://pellmellism.github.io/freerouter_chat/) **<- Replace with your actual URL if hosted!)**
+**(Live Demo:** [**https://pellmellism.github.io/freerouter_chat/**](https://pellmellism.github.io/freerouter_chat/) **)**
 
 ---
 

@@ -1,0 +1,1121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Freerouter Chat</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <style>
+        :root {
+            --user-bg: #DCF8C6;
+            --ai-bg: #f1f0f0;
+            --bg-color: #f4f4f9;
+            --text-color: #333;
+            --border-color: #ddd;
+            --button-bg: #007bff;
+            --button-text: white;
+            --button-hover-bg: #0056b3;
+            --error-color: #d9534f;
+            --loading-color: #aaa;
+        }
+        body {
+            font-family: sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        #app {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            max-width: 900px;
+            margin: 0 auto;
+            width: 100%;
+            background-color: white;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .header {
+            padding: 10px 15px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 1.5em;
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .api-key-section {
+            padding: 15px;
+            border-bottom: 1px solid var(--border-color);
+            background-color: #fffbea;
+        }
+        .api-key-section input[type="password"],
+        .api-key-section input[type="text"] { /* Show key if already set */
+            padding: 8px;
+            margin-right: 5px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            min-width: 250px;
+        }
+        .chat-container {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+        }
+        .message {
+            margin-bottom: 15px;
+            max-width: 80%;
+            padding: 10px 15px;
+            border-radius: 15px;
+            position: relative;
+        }
+        .message.user {
+            background-color: var(--user-bg);
+            align-self: flex-end;
+            border-bottom-right-radius: 5px;
+        }
+        .message.assistant {
+            background-color: var(--ai-bg);
+            align-self: flex-start;
+            border-bottom-left-radius: 5px;
+        }
+        .message-content img {
+            max-width: 100%;
+            max-height: 200px; /* Limit preview size */
+            display: block;
+            margin-top: 5px;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+         .message-meta {
+            font-size: 0.75em;
+            color: #666;
+            margin-top: 5px;
+            text-align: right;
+        }
+         .message.assistant .message-meta {
+            text-align: left;
+        }
+        .message-actions {
+            font-size: 0.7em;
+            position: absolute;
+            bottom: -15px; /* Adjust as needed */
+            display: flex;
+            gap: 5px;
+        }
+        .message.user .message-actions { right: 0; }
+        .message.assistant .message-actions { left: 0; }
+        .message-actions button {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: #999;
+            padding: 0;
+        }
+        .message-actions button:hover { color: #333; }
+
+        .editing-message {
+            display: flex;
+            flex-direction: column;
+        }
+        .editing-message textarea {
+            width: 100%;
+            min-height: 50px;
+            margin-bottom: 5px;
+            border: 1px solid var(--border-color);
+            padding: 5px;
+            border-radius: 4px;
+        }
+        .editing-message-actions {
+            align-self: flex-end;
+        }
+
+        .input-area {
+            display: flex;
+            padding: 15px;
+            border-top: 1px solid var(--border-color);
+            gap: 10px;
+            align-items: center;
+        }
+        .input-area textarea {
+            flex-grow: 1;
+            padding: 10px;
+            border-radius: 20px;
+            border: 1px solid var(--border-color);
+            resize: none;
+            min-height: 24px; /* Start small */
+            max-height: 150px; /* Limit growth */
+            overflow-y: auto;
+            font-size: 1em;
+            line-height: 1.4;
+        }
+        .input-area button {
+            padding: 10px 15px;
+            border-radius: 20px;
+            border: none;
+            background-color: var(--button-bg);
+            color: var(--button-text);
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .input-area button:hover:not(:disabled) {
+            background-color: var(--button-hover-bg);
+        }
+        .input-area button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        .image-preview-container {
+            position: relative;
+            margin-right: 10px;
+        }
+        .image-preview {
+            width: 40px;
+            height: 40px;
+            object-fit: cover;
+            border-radius: 4px;
+            border: 1px solid var(--border-color);
+        }
+        .remove-image-btn {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            background-color: rgba(0,0,0,0.6);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 18px;
+            height: 18px;
+            font-size: 10px;
+            line-height: 18px;
+            text-align: center;
+            cursor: pointer;
+            padding: 0;
+        }
+        .error-message {
+            color: var(--error-color);
+            padding: 10px 15px;
+            font-size: 0.9em;
+            text-align: center;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .loading-indicator {
+            font-style: italic;
+            color: var(--loading-color);
+            text-align: center;
+            padding: 10px;
+        }
+        select, button {
+            padding: 8px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            background-color: #fff;
+            cursor: pointer;
+        }
+        button {
+             background-color: var(--button-bg);
+             color: var(--button-text);
+        }
+        button:hover:not(:disabled) {
+             background-color: var(--button-hover-bg);
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+
+        /* Modal styles */
+        .modal {
+            position: fixed;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .modal-content {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .modal-content img {
+            max-width: 80vw;
+            max-height: 80vh;
+        }
+        .modal-content button {
+            margin-top: 15px;
+        }
+
+        /* Hide file inputs visually but keep them accessible */
+        .visually-hidden {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="header">
+            <h1>Freerouter Chat</h1>
+            <div class="controls" v-if="apiKeyStored">
+                <select v-model="selectedModel" @change="persistModelSelection">
+                    <option disabled value="">Select a Model</option>
+                    <option v-for="model in filteredAvailableModels" :key="model.id" :value="model.id">
+                        {{ model.name || model.id }} ({{ formatContext(model.context_length) }})
+                    </option>
+                </select>
+                <button @click="triggerImport" title="Import Chat (JSON)">Import</button>
+                <button @click="exportChat" title="Export Chat (JSON)">Export</button>
+                <button @click="clearApiKey" title="Clear API Key">Logout</button>
+                <input type="file" ref="importFile" @change="handleImportFile" accept=".json" class="visually-hidden">
+            </div>
+        </div>
+
+        <div v-if="!apiKeyStored" class="api-key-section">
+            <label for="apiKeyInput">Enter OpenRouter API Key:</label>
+            <input type="password" id="apiKeyInput" v-model="apiKeyInput" @keyup.enter="saveApiKey">
+            <button @click="saveApiKey">Save Key</button>
+            <p style="font-size: 0.8em; margin-top: 5px;">Your key will be stored in a browser cookie. Ensure you trust this device.</p>
+        </div>
+
+        <div v-if="errorMessage" class="error-message">
+            {{ errorMessage }}
+        </div>
+
+        <div class="chat-container" ref="chatContainer" v-if="apiKeyStored">
+            <div v-if="isLoading && chatHistory.length === 0" class="loading-indicator">Fetching models...</div>
+            <div v-for="(msg, index) in chatHistory" :key="msg.id" :class="['message', msg.role]">
+                 <div class="message-content">
+                    <div v-if="editingMessage && editingMessage.id === msg.id" class="editing-message">
+                        <textarea v-model="editingMessage.content" ref="editInput"></textarea>
+                        <div class="editing-message-actions">
+                            <button @click="saveEditMessage">Save</button>
+                            <button @click="cancelEditMessage">Cancel</button>
+                        </div>
+                    </div>
+                    <div v-else>
+                        <template v-if="Array.isArray(msg.content)">
+                            <div v-for="(part, partIndex) in msg.content" :key="partIndex">
+                                <p v-if="part.type === 'text'" style="white-space: pre-wrap; margin: 0 0 5px 0;">{{ part.text }}</p>
+                                <img v-if="part.type === 'image_url'"
+                                     :src="part.image_url.url"
+                                     alt="User uploaded image"
+                                     @click="showImageModal(part.image_url.url)">
+                            </div>
+                        </template>
+                        <template v-else>
+                            <p style="white-space: pre-wrap; margin: 0;">{{ msg.content }}</p>
+                        </template>
+                    </div>
+                </div>
+                <div class="message-meta">
+                    {{ formatTimestamp(msg.timestamp) }}
+                    <span v-if="msg.role === 'assistant' && msg.model"> - {{ msg.model.split('/')[1] || msg.model }}</span>
+                </div>
+                 <div class="message-actions" v-if="!(editingMessage && editingMessage.id === msg.id)">
+                    <button @click="startEditMessage(index)" title="Edit">✏️</button>
+                    <button @click="deleteMessage(index)" title="Delete">🗑️</button>
+                 </div>
+            </div>
+             <div v-if="isLoading && chatHistory.length > 0" class="loading-indicator">
+                AI is thinking...
+            </div>
+        </div>
+
+        <div class="input-area" v-if="apiKeyStored">
+            <div v-if="imagePreviewUrl" class="image-preview-container">
+                <img :src="imagePreviewUrl" alt="Preview" class="image-preview">
+                <button @click="removeImage" class="remove-image-btn" title="Remove Image">×</button>
+            </div>
+             <button @click="triggerImageUpload" title="Add Image" :disabled="isLoading">🖼️</button>
+             <input type="file" ref="imageFile" @change="handleImageUpload" accept="image/*" class="visually-hidden">
+
+            <textarea
+                v-model="newMessage"
+                placeholder="Type your message or add an image..."
+                @keyup.enter.exact="sendMessage"
+                @input="autoGrowTextarea"
+                ref="messageInput"
+                :disabled="isLoading || !selectedModel">
+            </textarea>
+            <button @click="sendMessage" :disabled="isLoading || (!newMessage.trim() && !imageBase64) || !selectedModel">Send</button>
+        </div>
+
+        <!-- Image Modal -->
+        <div v-if="modalImageUrl" class="modal" @click="closeImageModal">
+            <div class="modal-content" @click.stop>
+                <img :src="modalImageUrl" alt="Full size image">
+                <button @click="closeImageModal">Close</button>
+            </div>
+        </div>
+
+    </div>
+    <script>
+        const { createApp, ref, reactive, computed, onMounted, nextTick, watch } = Vue; // Added 'watch' here
+
+        createApp({
+            setup() {
+                const apiKey = ref('');
+                const apiKeyInput = ref('');
+                const apiKeyStored = computed(() => !!apiKey.value);
+                const models = ref([]);
+                const availableModels = ref([]);
+                const selectedModel = ref('');
+                const chatHistory = ref([]);
+                const newMessage = ref('');
+                const isLoading = ref(false);
+                const errorMessage = ref('');
+                const chatContainer = ref(null);
+                const messageInput = ref(null);
+                const editingMessage = ref(null); // { id: number, content: string, originalIndex: number }
+                const imageFile = ref(null);
+                const imagePreviewUrl = ref(null);
+                const imageBase64 = ref(null); // Stores the processed base64 string
+                const exhaustedModels = reactive(new Set()); // Track models hitting limits
+                const importFile = ref(null);
+                const modalImageUrl = ref(null); // For image modal
+
+                const SITE_URL = 'https://freerouter.chat/app'; // Optional: Replace with your app's actual URL if hosted
+                const SITE_NAME = 'Freerouter Chat'; // Optional: Replace with your app's name
+
+                // --- API Key Management ---
+                const saveApiKey = () => {
+                    if (apiKeyInput.value.trim()) {
+                        apiKey.value = apiKeyInput.value.trim();
+                        // Use SameSite=Lax and Secure if possible (Secure requires HTTPS)
+                        const secureFlag = window.location.protocol === 'https:' ? '; Secure' : '';
+                        document.cookie = `openrouter_api_key=${apiKey.value};path=/;max-age=${60*60*24*365};samesite=lax${secureFlag}`; // Store for 1 year
+                        apiKeyInput.value = '';
+                        errorMessage.value = '';
+                        fetchModels(); // Fetch models once key is saved
+                    }
+                };
+
+                const loadApiKey = () => {
+                    const cookies = document.cookie.split(';');
+                    for (let cookie of cookies) {
+                        const [name, value] = cookie.trim().split('=');
+                        if (name === 'openrouter_api_key') {
+                            apiKey.value = value;
+                            break;
+                        }
+                    }
+                    if (apiKeyStored.value) {
+                        fetchModels();
+                    }
+                };
+
+                const clearApiKey = () => {
+                    apiKey.value = '';
+                    const secureFlag = window.location.protocol === 'https:' ? '; Secure' : '';
+                    document.cookie = `openrouter_api_key=;path=/;max-age=0;samesite=lax${secureFlag}`; // Expire the cookie
+                    chatHistory.value = []; // Clear chat on logout
+                    selectedModel.value = ''; // Reset model selection
+                    availableModels.value = [];
+                    models.value = [];
+                    exhaustedModels.clear(); // Clear exhausted list on logout
+                    localStorage.removeItem('freerouter_selected_model'); // Clear persisted model
+                    localStorage.removeItem('freerouter_chat_history'); // Clear persisted history
+                };
+
+                 // --- Chat History Persistence ---
+                 const persistChatHistory = () => {
+                    try {
+                        localStorage.setItem('freerouter_chat_history', JSON.stringify(chatHistory.value));
+                    } catch (e) {
+                        console.error("Error saving chat history to localStorage:", e);
+                        // Handle potential storage limit errors
+                    }
+                 };
+
+                 const loadPersistedChatHistory = () => {
+                     const savedHistory = localStorage.getItem('freerouter_chat_history');
+                     if (savedHistory) {
+                         try {
+                             const parsedHistory = JSON.parse(savedHistory);
+                             // Basic validation
+                             if (Array.isArray(parsedHistory) && parsedHistory.every(msg => msg.role && msg.timestamp)) {
+                                 chatHistory.value = parsedHistory;
+                                 nextTick(scrollToBottom);
+                             } else {
+                                 console.warn("Invalid chat history found in localStorage. Ignoring.");
+                                 localStorage.removeItem('freerouter_chat_history');
+                             }
+                         } catch (e) {
+                             console.error("Error parsing chat history from localStorage:", e);
+                             localStorage.removeItem('freerouter_chat_history');
+                         }
+                     }
+                 };
+
+                 // Watch chatHistory and persist it
+                 watch(chatHistory, persistChatHistory, { deep: true });
+
+
+                // --- Model Fetching and Filtering ---
+                const fetchModels = async () => {
+                    if (!apiKeyStored.value) return; // Don't fetch if no key
+                    isLoading.value = true;
+                    errorMessage.value = '';
+                    try {
+                        const response = await fetch('https://openrouter.ai/api/v1/models');
+                        if (!response.ok) {
+                             const errorBody = await response.text(); // Read body for clues
+                            throw new Error(`HTTP error ${response.status}: ${errorBody}`);
+                        }
+                        const data = await response.json();
+                        models.value = data.data || [];
+                        filterAndSortModels();
+                        loadPersistedModelSelection(); // Load after models are fetched
+                        loadPersistedChatHistory(); // Load chat history after models (and potentially model selection) are ready
+                    } catch (error) {
+                        console.error("Error fetching models:", error);
+                        errorMessage.value = `Failed to fetch models: ${error.message}.`;
+                        if (error.message.includes('401') || error.message.includes('Unauthorized') || error.message.includes('403') ) {
+                             errorMessage.value += ' Your API key might be invalid or lack permissions.';
+                             // clearApiKey(); // Force logout on invalid key? Maybe too aggressive.
+                        } else {
+                             errorMessage.value += ' Please check your connection.';
+                        }
+                    } finally {
+                        isLoading.value = false;
+                    }
+                };
+
+                const filterAndSortModels = () => {
+                    const filtered = models.value
+                        .filter(m =>
+                            m.id &&
+                            m.id.includes(':free') &&
+                            m.context_length >= 96000 && // Ensure context length is sufficient
+                            (m.description?.toLowerCase().includes('vision') || m.name?.toLowerCase().includes('vision') || m.id?.toLowerCase().includes('vision')) && // Broader vision check
+                            !exhaustedModels.has(m.id) // Exclude exhausted models
+                        )
+                        .sort((a, b) => (a.context_length || 0) - (b.context_length || 0)); // Sort by context length ascending, handle potential nulls
+
+                    availableModels.value = filtered;
+
+                    // Get persisted selection *before* auto-selecting
+                    const savedModelId = localStorage.getItem('freerouter_selected_model');
+
+                    if (savedModelId && availableModels.value.some(m => m.id === savedModelId)) {
+                        selectedModel.value = savedModelId; // Use persisted if available
+                    } else if (!selectedModel.value && availableModels.value.length > 0) {
+                        // Auto-select the first available only if nothing is selected
+                        selectedModel.value = availableModels.value[0].id;
+                        persistModelSelection();
+                    } else if (selectedModel.value && !availableModels.value.some(m => m.id === selectedModel.value)) {
+                         // If current selection became unavailable, select the first available
+                         selectedModel.value = availableModels.value.length > 0 ? availableModels.value[0].id : '';
+                         persistModelSelection();
+                    }
+                    // If no models available, ensure selection is cleared
+                    else if (availableModels.value.length === 0) {
+                         selectedModel.value = '';
+                         persistModelSelection();
+                    }
+                };
+
+                // Re-filter when exhausted models change
+                watch(exhaustedModels, filterAndSortModels, { deep: true });
+
+                 // --- Model Selection Persistence ---
+                const persistModelSelection = () => {
+                     if (selectedModel.value) {
+                         localStorage.setItem('freerouter_selected_model', selectedModel.value);
+                     } else {
+                         localStorage.removeItem('freerouter_selected_model');
+                     }
+                };
+
+                const loadPersistedModelSelection = () => {
+                    // This is called within fetchModels now, after models are loaded
+                    // The logic inside filterAndSortModels handles loading the persisted value correctly
+                };
+
+                 // --- Chat Logic ---
+                 const sendMessage = async () => {
+                    const textContent = newMessage.value.trim();
+                    const currentImageBase64 = imageBase64.value;
+
+                    if (!textContent && !currentImageBase64) return;
+                    if (!selectedModel.value) {
+                        errorMessage.value = "Please select a model first.";
+                        return;
+                    }
+                    if (isLoading.value) return;
+
+                    isLoading.value = true;
+                    errorMessage.value = '';
+
+                    // --- Prepare user message content ---
+                    let userMessageContentParts = [];
+                    if (textContent) {
+                        userMessageContentParts.push({ type: 'text', text: textContent });
+                    }
+                    if (currentImageBase64) {
+                        userMessageContentParts.push({
+                            type: 'image_url',
+                            image_url: { url: currentImageBase64 }
+                        });
+                    }
+
+                    // Add user message to history
+                    const userMessage = {
+                        id: Date.now() + Math.random(), // Simple unique ID
+                        role: 'user',
+                        content: userMessageContentParts.length === 1 && userMessageContentParts[0].type === 'text'
+                                 ? userMessageContentParts[0].text // Simplify to string if only text
+                                 : userMessageContentParts,         // Keep as array otherwise
+                        timestamp: Date.now()
+                    };
+                    chatHistory.value.push(userMessage);
+
+                    // Clear input fields *after* pushing to history
+                    newMessage.value = '';
+                    removeImage(); // Clear image after sending
+                    autoGrowTextarea(); // Reset textarea height
+
+                    // Scroll to bottom after adding user message
+                    scrollToBottom();
+
+                     // --- Prepare API request ---
+                     // Always send history, ensure content is in array format for multimodal messages
+                    const apiMessages = chatHistory.value.map(msg => {
+                        let contentToSend = msg.content;
+                        // Ensure user messages are in the array format if they contain images or were originally arrays
+                        if (msg.role === 'user') {
+                            if (typeof contentToSend === 'string') {
+                                contentToSend = [{ type: 'text', text: contentToSend }];
+                            } else if (!Array.isArray(contentToSend)) {
+                                // Handle potential unexpected format, maybe log an error
+                                console.error("Unexpected user message content format:", contentToSend);
+                                contentToSend = [{ type: 'text', text: String(contentToSend) }]; // Fallback
+                            }
+                        }
+                        // Assistant messages should typically be strings from the API
+                        else if (msg.role === 'assistant' && Array.isArray(contentToSend)) {
+                            // If assistant content somehow became an array, extract text or stringify
+                             const textPart = contentToSend.find(p => p.type === 'text');
+                             contentToSend = textPart ? textPart.text : JSON.stringify(contentToSend);
+                        }
+
+                        return {
+                            role: msg.role,
+                            content: contentToSend
+                        };
+                    });
+
+                    // Add placeholder for AI response while waiting
+                    const thinkingMessageId = Date.now() + Math.random() + '_thinking';
+                    chatHistory.value.push({
+                         id: thinkingMessageId,
+                         role: 'assistant',
+                         content: '...', // Placeholder
+                         timestamp: Date.now(),
+                         model: selectedModel.value,
+                         isLoading: true // Custom flag
+                    });
+                    scrollToBottom();
+
+
+                    try {
+                        const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': `Bearer ${apiKey.value}`,
+                                'Content-Type': 'application/json',
+                                'HTTP-Referer': SITE_URL, // Optional
+                                'X-Title': SITE_NAME     // Optional
+                            },
+                            body: JSON.stringify({
+                                model: selectedModel.value,
+                                messages: apiMessages
+                                // stream: false // Keeping it simple
+                            })
+                        });
+
+                        // Find and remove the thinking indicator message
+                        const thinkingIndex = chatHistory.value.findIndex(m => m.id === thinkingMessageId);
+                        if (thinkingIndex !== -1) {
+                            chatHistory.value.splice(thinkingIndex, 1);
+                        }
+
+                        if (!response.ok) {
+                            const errorData = await response.json().catch(() => ({ // Try to parse JSON error
+                                error: { message: `HTTP error! Status: ${response.status}` }
+                            }));
+                             handleApiError(response.status, errorData, selectedModel.value);
+                            return; // Stop processing on error
+                        }
+
+                        const data = await response.json();
+                        handleApiResponse(data);
+
+                    } catch (error) {
+                         // Also remove thinking indicator on fetch error
+                         const thinkingIndex = chatHistory.value.findIndex(m => m.id === thinkingMessageId);
+                         if (thinkingIndex !== -1) {
+                             chatHistory.value.splice(thinkingIndex, 1);
+                         }
+                        console.error("Error sending message:", error);
+                        errorMessage.value = `Failed to send message: ${error.message}. Check connection or API key.`;
+                    } finally {
+                        isLoading.value = false;
+                        // scrollToBottom(); // Scroll handled by response/error handlers now
+                    }
+                };
+
+                 const handleApiResponse = (data) => {
+                    if (data.choices && data.choices.length > 0) {
+                        const aiMessage = data.choices[0].message;
+                         // Check if content exists and is not null/undefined
+                        const content = aiMessage.content ?? (aiMessage.tool_calls ? JSON.stringify(aiMessage.tool_calls) : "[No Content]");
+
+                        chatHistory.value.push({
+                            id: data.id || Date.now() + Math.random(), // Use API ID if available
+                            role: 'assistant',
+                            content: content,
+                            timestamp: data.created ? data.created * 1000 : Date.now(), // Use API timestamp if available
+                            model: data.model // Store the model used
+                        });
+                    } else {
+                         chatHistory.value.push({
+                             id: data.id || Date.now() + Math.random(),
+                            role: 'assistant',
+                            content: "[Received empty or unexpected response]",
+                            timestamp: data.created ? data.created * 1000 : Date.now(),
+                            model: data.model || selectedModel.value // Fallback if model not in response
+                         });
+                    }
+                     errorMessage.value = ''; // Clear previous errors on success
+                     scrollToBottom();
+                 };
+
+                const handleApiError = (status, errorData, modelIdUsed) => {
+                     console.error("API Error:", status, errorData);
+                     let detail = errorData?.error?.message || 'Unknown error';
+                     // Try to extract more specific provider error if available
+                     if (errorData?.error?.metadata?.raw?.message) {
+                         detail = `${detail} (Provider: ${errorData.error.metadata.raw.message})`;
+                     }
+                     let msg = `API Error (${status}): ${detail}`;
+
+                     if (status === 429) {
+                         // Rate limit likely hit for this free model
+                         msg += ` - Daily limit likely reached for ${modelIdUsed}. Removing it from selection for this session.`;
+                         exhaustedModels.add(modelIdUsed);
+                         // filterAndSortModels will be triggered by watch
+                     } else if (status === 401 || status === 403) {
+                         msg += ' Please check your API key.';
+                     } else if (status === 400 && detail.includes('context length')) {
+                        msg += ' The conversation history might be too long for this model.';
+                     } else if (status === 400 && detail.includes('invalid image')) {
+                         msg += ' The model reported an issue with the uploaded image.';
+                     } else if (status === 503) {
+                          msg += ` Service unavailable for ${modelIdUsed}. It might be down or overloaded. Try another model.`;
+                           exhaustedModels.add(modelIdUsed); // Temporarily remove
+                     }
+                     errorMessage.value = msg;
+                     scrollToBottom(); // Scroll to show error
+                };
+
+                // --- Message Actions ---
+                 const startEditMessage = (index) => {
+                    const msg = chatHistory.value[index];
+                     if (msg.isLoading) return; // Don't edit placeholder
+
+                    // Only allow editing text content for simplicity
+                    let textContent = '';
+                    if (typeof msg.content === 'string') {
+                        textContent = msg.content;
+                    } else if (Array.isArray(msg.content)) {
+                        const textPart = msg.content.find(part => part.type === 'text');
+                        // Allow editing even if there's only an image, but start with empty text
+                        textContent = textPart ? textPart.text : '';
+                    } else {
+                        console.warn("Cannot edit message with unexpected content format:", msg.content);
+                        return; // Don't allow editing if format is unknown
+                    }
+
+
+                     editingMessage.value = {
+                        id: msg.id,
+                        originalIndex: index,
+                        content: textContent // Start editing with text part or empty
+                     };
+                     // Focus the input after the DOM updates
+                     nextTick(() => {
+                        // Find the specific textarea within the message being edited
+                         const editingTextarea = chatContainer.value?.querySelector(`.message[data-message-id="${msg.id}"] textarea`);
+                         if (editingTextarea) editingTextarea.focus();
+                     });
+                 };
+
+                 const saveEditMessage = () => {
+                     if (!editingMessage.value) return;
+
+                     const index = chatHistory.value.findIndex(msg => msg.id === editingMessage.value.id);
+                     if (index !== -1) {
+                         const originalMessage = chatHistory.value[index];
+                         const editedText = editingMessage.value.content.trim();
+                         let newContent;
+
+                         // Reconstruct content: keep existing images, update/add text part
+                         if (Array.isArray(originalMessage.content)) {
+                             newContent = originalMessage.content.filter(part => part.type === 'image_url'); // Keep only image parts
+                             if (editedText) { // Add text part if there is edited text
+                                 newContent.unshift({ type: 'text', text: editedText });
+                             }
+                             // If the result is empty (e.g., deleting text from text-only message originally in array format), handle it
+                              if (newContent.length === 0) {
+                                  newContent = "[Message content removed]"; // Or delete message?
+                              } else if (newContent.length === 1 && newContent[0].type === 'text') {
+                                  // Simplify back to string if only text remains
+                                  newContent = newContent[0].text;
+                              }
+
+                         } else { // Original was likely just a string
+                             newContent = editedText || "[Message content removed]";
+                         }
+
+                         // Update or delete the message
+                         if (newContent === "[Message content removed]") {
+                             // Optionally confirm deletion again or just remove
+                              if (confirm('Save empty message? This will remove the text content.')) {
+                                 if(Array.isArray(newContent) && newContent.some(p => p.type === 'image_url')){
+                                      // If it still contains an image, just update
+                                       chatHistory.value[index].content = newContent.filter(part => part.type === 'image_url');
+                                  } else {
+                                       // If no image left, remove entirely
+                                       chatHistory.value.splice(index, 1);
+                                  }
+
+                              } else {
+                                   // User cancelled saving empty message
+                                    editingMessage.value = null;
+                                    return;
+                              }
+                         } else {
+                               chatHistory.value[index].content = newContent;
+                               chatHistory.value[index].timestamp = Date.now(); // Update timestamp
+                         }
+
+
+                     }
+                     editingMessage.value = null; // Exit editing mode
+                 };
+
+                 const cancelEditMessage = () => {
+                     editingMessage.value = null;
+                 };
+
+                 const deleteMessage = (index) => {
+                    const msg = chatHistory.value[index];
+                     if (msg.isLoading) return; // Don't delete placeholder
+
+                     if (confirm('Are you sure you want to delete this message?')) {
+                         chatHistory.value.splice(index, 1);
+                     }
+                 };
+
+                 // --- Image Handling ---
+                 const triggerImageUpload = () => {
+                    imageFile.value?.click();
+                 };
+
+                 const handleImageUpload = (event) => {
+                    const file = event.target.files[0];
+                    if (file) {
+                        // Basic size check (e.g., 10MB)
+                        if (file.size > 10 * 1024 * 1024) {
+                             errorMessage.value = "Image file is too large (max 10MB).";
+                             event.target.value = null; // Reset input
+                             return;
+                        }
+                        processImage(file);
+                    }
+                    // Reset file input to allow selecting the same file again
+                    event.target.value = null;
+                 };
+
+                const processImage = (file) => {
+                    errorMessage.value = ''; // Clear previous errors
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        const img = new Image();
+                        img.onload = () => {
+                            const canvas = document.createElement('canvas');
+                            const MAX_DIM = 512;
+                            let width = img.width;
+                            let height = img.height;
+
+                            // Calculate new dimensions while maintaining aspect ratio
+                             if (width > MAX_DIM || height > MAX_DIM) {
+                                if (width > height) {
+                                    height = Math.round(height * (MAX_DIM / width));
+                                    width = MAX_DIM;
+                                } else {
+                                    width = Math.round(width * (MAX_DIM / height));
+                                    height = MAX_DIM;
+                                }
+                             }
+
+
+                            canvas.width = width;
+                            canvas.height = height;
+                            const ctx = canvas.getContext('2d');
+                             // Draw white background for formats that support transparency (like PNG)
+                             // to ensure JPEG conversion doesn't have black background artifacts.
+                             // Check file type for more robust handling if needed.
+                             ctx.fillStyle = "#FFFFFF";
+                             ctx.fillRect(0, 0, width, height);
+                            ctx.drawImage(img, 0, 0, width, height);
+
+                            // Convert to base64 JPEG (usually smaller for photos)
+                             // Use image/png if the original was png and you want to preserve transparency (though base64 size might increase)
+                             const targetFormat = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
+                            const resizedBase64 = canvas.toDataURL(targetFormat, 0.85); // Quality 85%
+                            imagePreviewUrl.value = resizedBase64;
+                            imageBase64.value = resizedBase64;
+                        };
+                        img.onerror = (err) => {
+                            console.error("Error loading image:", err);
+                            errorMessage.value = "Failed to load the selected image. It might be corrupted or an unsupported format.";
+                            removeImage();
+                        };
+                         img.src = e.target.result;
+                    };
+                    reader.onerror = (err) => {
+                        console.error("Error reading file:", err);
+                        errorMessage.value = "Failed to read the selected file.";
+                        removeImage();
+                    };
+                    reader.readAsDataURL(file);
+                };
+
+
+                 const removeImage = () => {
+                    imagePreviewUrl.value = null;
+                    imageBase64.value = null;
+                    // Also clear the file input ref if needed, though resetting on change might be enough
+                     if (imageFile.value) imageFile.value.value = null;
+                 };
+
+                 // --- Import/Export ---
+                 const exportChat = () => {
+                     if (chatHistory.value.length === 0) {
+                        alert("Chat history is empty.");
+                        return;
+                     }
+                      // Filter out any temporary loading messages before export
+                     const historyToExport = chatHistory.value.filter(msg => !msg.isLoading);
+                     if (historyToExport.length === 0) {
+                          alert("Chat history only contains temporary messages.");
+                          return;
+                     }
+
+                     const dataStr = JSON.stringify(historyToExport, null, 2); // Pretty print JSON
+                     const dataBlob = new Blob([dataStr], { type: 'application/json' });
+                     const url = URL.createObjectURL(dataBlob);
+                     const link = document.createElement('a');
+                     link.href = url;
+                     link.download = `freerouter_chat_${new Date().toISOString().split('T')[0]}.json`;
+                     document.body.appendChild(link);
+                     link.click();
+                     document.body.removeChild(link);
+                     URL.revokeObjectURL(url);
+                 };
+
+                 const triggerImport = () => {
+                     importFile.value?.click();
+                 };
+
+                 const handleImportFile = (event) => {
+                     const file = event.target.files[0];
+                     if (!file) return;
+
+                     const reader = new FileReader();
+                     reader.onload = (e) => {
+                         try {
+                             const importedHistory = JSON.parse(e.target.result);
+                              // More robust validation
+                             if (Array.isArray(importedHistory) && importedHistory.every(msg =>
+                                 typeof msg === 'object' &&
+                                 msg !== null &&
+                                 typeof msg.role === 'string' &&
+                                 (typeof msg.content === 'string' || Array.isArray(msg.content)) && // Allow string or array content
+                                 typeof msg.timestamp === 'number' // Ensure timestamp is a number
+                             )) {
+                                 if (confirm(`Replace current chat with ${importedHistory.length} imported messages?`)) {
+                                     chatHistory.value = importedHistory;
+                                     // Try to set the model from the last AI message
+                                     const lastAiMsg = [...importedHistory].reverse().find(m => m.role === 'assistant' && m.model);
+                                     if (lastAiMsg?.model && availableModels.value.some(m => m.id === lastAiMsg.model)) {
+                                        selectedModel.value = lastAiMsg.model;
+                                     } else if (availableModels.value.length > 0) {
+                                        // If imported model isn't available, default to first available
+                                        selectedModel.value = availableModels.value[0].id;
+                                     } else {
+                                          selectedModel.value = ''; // No models available
+                                     }
+                                     persistModelSelection(); // Persist potentially changed model
+                                     errorMessage.value = '';
+                                     nextTick(scrollToBottom);
+                                 }
+                             } else {
+                                 throw new Error("Invalid chat history format. Each message must have role, content, and timestamp.");
+                             }
+                         } catch (error) {
+                             console.error("Error importing chat:", error);
+                             errorMessage.value = `Failed to import chat: ${error.message}`;
+                         } finally {
+                             // Reset file input
+                             event.target.value = null;
+                         }
+                     };
+                     reader.onerror = (err) => {
+                         console.error("Error reading import file:", err);
+                         errorMessage.value = "Failed to read the import file.";
+                          event.target.value = null;
+                     };
+                     reader.readAsText(file);
+                 };
+
+                 // --- Utilities ---
+                 const scrollToBottom = () => {
+                     nextTick(() => {
+                         if (chatContainer.value) {
+                             // Use smooth scroll for better UX
+                             chatContainer.value.scrollTo({ top: chatContainer.value.scrollHeight, behavior: 'smooth' });
+                         }
+                     });
+                 };
+
+                 const autoGrowTextarea = () => {
+                     const el = messageInput.value;
+                     if (el) {
+                         // Temporarily shrink, measure, then expand
+                         const currentScrollTop = el.scrollTop; // Preserve scroll position
+                         el.style.height = 'auto';
+                         const newHeight = el.scrollHeight;
+                         el.style.height = newHeight + 'px';
+                          // Restore scroll position to prevent jumping if content exceeds max-height
+                         el.scrollTop = currentScrollTop;
+                     }
+                 };
+
+
+                 const formatTimestamp = (timestamp) => {
+                      if (!timestamp || typeof timestamp !== 'number') return '';
+                      try {
+                          return new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                      } catch (e) {
+                           console.warn("Error formatting timestamp:", timestamp, e);
+                           return ''; // Handle invalid timestamps gracefully
+                      }
+
+                 };
+
+                 const formatContext = (length) => {
+                     if (!length || typeof length !== 'number') return 'N/A';
+                     return `${Math.round(length / 1000)}k`;
+                 };
+
+                 const filteredAvailableModels = computed(() => {
+                     return availableModels.value; // This now relies on the reactive filtering
+                 });
+
+                 const showImageModal = (url) => {
+                    modalImageUrl.value = url;
+                 };
+                 const closeImageModal = () => {
+                    modalImageUrl.value = null;
+                 };
+
+                // --- Lifecycle ---
+                onMounted(() => {
+                    loadApiKey(); // This will trigger fetchModels if key exists
+                    // Auto-grow textarea initially if needed
+                     nextTick(autoGrowTextarea);
+                     // Attempt to load history even if API key isn't set yet (useful if key added later)
+                     loadPersistedChatHistory();
+                });
+
+                return {
+                    apiKey,
+                    apiKeyInput,
+                    apiKeyStored,
+                    models,
+                    availableModels,
+                    selectedModel,
+                    chatHistory,
+                    newMessage,
+                    isLoading,
+                    errorMessage,
+                    chatContainer,
+                    messageInput,
+                    editingMessage,
+                    imageFile,
+                    imagePreviewUrl,
+                    imageBase64,
+                    importFile,
+                    modalImageUrl,
+
+                    // Methods
+                    saveApiKey,
+                    clearApiKey,
+                    fetchModels,
+                    sendMessage,
+                    startEditMessage,
+                    saveEditMessage,
+                    cancelEditMessage,
+                    deleteMessage,
+                    triggerImageUpload,
+                    handleImageUpload,
+                    removeImage,
+                    exportChat,
+                    triggerImport,
+                    handleImportFile,
+                    scrollToBottom,
+                    autoGrowTextarea,
+                    formatTimestamp,
+                    formatContext,
+                    persistModelSelection, // Make sure it's returned
+                    showImageModal,
+                    closeImageModal,
+
+                    // Computed
+                    filteredAvailableModels, // Make sure it's returned
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
